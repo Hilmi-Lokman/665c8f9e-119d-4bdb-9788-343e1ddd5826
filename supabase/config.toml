@@ -1,10 +1,1 @@
 project_id = "zecylmrmutyhibqwnjps"
-
-[functions.wifi-capture]
-verify_jwt = false
-
-[functions.attendance-report]
-verify_jwt = false
-
-[functions.auto-register-devices]
-verify_jwt = false
