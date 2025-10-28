@@ -21,7 +21,14 @@ serve(async (req) => {
 
     const { data: records, error } = await supabaseClient
       .from('attendance_records')
-      .select('*')
+      .select(`
+        *,
+        schedules:schedule_id (
+          subject_name,
+          class_code,
+          location
+        )
+      `)
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -44,7 +51,10 @@ serve(async (req) => {
       const timeIn = new Date(record.created_at);
       const timeOut = new Date(timeIn.getTime() + (record.duration_seconds * 1000));
       
-      console.log(`[Report] ID=${record.id}: anomaly_flag=${record.anomaly_flag}, db_status=${record.status}, final_status=${status}, score=${record.anomaly_score}`);
+      // Get class name from schedule if available, otherwise fall back to device class_name
+      const className = record.schedules?.subject_name || record.class_name || 'General';
+      
+      console.log(`[Report] ID=${record.id}: class=${className}, schedule=${record.schedules?.subject_name}, device_class=${record.class_name}`);
       
       return {
         id: record.id,
@@ -53,7 +63,7 @@ serve(async (req) => {
         macAddress: record.device_id,
         timestamp: record.created_at,
         timeOut: timeOut.toISOString(),
-        className: record.class_name || 'General',
+        className: className,
         anomalyFlag: record.anomaly_flag,
         anomalyScore: record.anomaly_score,
         sessionDuration: record.session_duration || `${Math.floor(record.duration_seconds / 60)}m`,

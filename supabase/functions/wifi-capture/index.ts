@@ -332,7 +332,10 @@ serve(async (req) => {
         // Lookup registered device information
         const registeredDevice = deviceLookup.get(record.device_id);
         
-        console.log(`[process] Device ${record.device_id}: anomaly=${record.anomaly_flag}, score=${record.anomaly_score}, status=${status}, registered=${!!registeredDevice}`);
+        // Use schedule's subject name if available, otherwise use device's class_name
+        const className = activeSchedule?.subject_name || registeredDevice?.class_name || null;
+        
+        console.log(`[process] Device ${record.device_id}: anomaly=${record.anomaly_flag}, score=${record.anomaly_score}, status=${status}, class=${className}`);
         
         return {
           device_id: record.device_id,
@@ -348,7 +351,7 @@ serve(async (req) => {
           session_duration: `${Math.floor(record.duration_seconds / 60)}m ${record.duration_seconds % 60}s`,
           student_name: registeredDevice?.student_name || null,
           matric_number: registeredDevice?.matric_number || null,
-          class_name: registeredDevice?.class_name || null,
+          class_name: className,
           schedule_id: activeSchedule?.id || null,
           attendance_duration_minutes: attendanceDurationMinutes,
           is_absent: isAbsent,
