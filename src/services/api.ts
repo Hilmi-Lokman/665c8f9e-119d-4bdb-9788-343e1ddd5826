@@ -20,6 +20,7 @@ export interface AttendanceRecord {
   matricNumber: string;
   macAddress: string;
   timestamp: string;
+  timeOut?: string;
   className: string;
   anomalyFlag: boolean;
   anomalyScore: number;

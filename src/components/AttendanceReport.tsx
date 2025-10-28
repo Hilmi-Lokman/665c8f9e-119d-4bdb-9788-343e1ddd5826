@@ -30,6 +30,17 @@ interface AttendanceRecord {
   duration?: string;
 }
 
+interface BackendAttendanceRecord {
+  id: string;
+  matricNumber: string;
+  studentName: string;
+  className: string;
+  timestamp: string;
+  timeOut?: string;
+  status: 'present' | 'late' | 'absent' | 'flagged' | 'suspicious';
+  sessionDuration: string;
+}
+
 const AttendanceReport = () => {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -51,7 +62,7 @@ const AttendanceReport = () => {
           studentName: record.studentName,
           className: record.className,
           timeIn: new Date(record.timestamp).toLocaleTimeString(),
-          timeOut: null,
+          timeOut: record.timeOut ? new Date(record.timeOut).toLocaleTimeString() : null,
           status: record.status,
           duration: record.sessionDuration
         }));

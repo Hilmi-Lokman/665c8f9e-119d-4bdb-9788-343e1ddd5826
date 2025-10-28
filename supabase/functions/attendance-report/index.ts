@@ -40,6 +40,10 @@ serve(async (req) => {
       // Ensure status matches anomaly_flag for consistency
       const status = record.anomaly_flag ? 'flagged' : (record.status || 'present');
       
+      // Calculate time out from time in + duration
+      const timeIn = new Date(record.created_at);
+      const timeOut = new Date(timeIn.getTime() + (record.duration_seconds * 1000));
+      
       console.log(`[Report] ID=${record.id}: anomaly_flag=${record.anomaly_flag}, db_status=${record.status}, final_status=${status}, score=${record.anomaly_score}`);
       
       return {
@@ -48,6 +52,7 @@ serve(async (req) => {
         matricNumber: record.matric_number || 'N/A',
         macAddress: record.device_id,
         timestamp: record.created_at,
+        timeOut: timeOut.toISOString(),
         className: record.class_name || 'General',
         anomalyFlag: record.anomaly_flag,
         anomalyScore: record.anomaly_score,
