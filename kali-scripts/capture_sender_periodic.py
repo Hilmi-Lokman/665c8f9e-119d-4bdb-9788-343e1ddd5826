@@ -13,8 +13,8 @@ import json
 import os
 
 # ----- CONFIG -----
-SUPABASE_URL = "https://hekwirthgpuialimtvxl.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhla3dpcnRoZ3B1aWFsaW10dnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1MjU3MjUsImV4cCI6MjA3NjEwMTcyNX0.1cAVVBdQG58gyYCM7gOgxI8zrKGY6awxzpMUceKsX_Q"
+SUPABASE_URL = "https://zecylmrmutyhibqwnjps.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA"
 CAPTURE_IFACE = "wlan0mon"
 CAPTURE_WINDOW = 30          # seconds per batch
 SEND_INTERVAL = 30           # seconds per send (same as window)
@@ -58,32 +58,22 @@ def handler(pkt):
             "timestamp": ts
         })
 
-def summarize_session(device_id, records):
-    """Compute features used by AI model"""
+def send_captures(device_id, records):
+    """Send individual captures to edge function for storage"""
     if not records:
-        return None
-    timestamps = [r["timestamp"] for r in records]
-    duration_total = max(timestamps) - min(timestamps)
-    ap_switches = len(set(r["ap"] for r in records))
-    rssi_values = [r["rssi"] for r in records if r["rssi"] is not None]
-    rssi_mean = mean(rssi_values) if rssi_values else 0
-    rssi_std = pstdev(rssi_values) if len(rssi_values) > 1 else 0
-    invalid_rssi_count = len([r for r in records if r["rssi"] is None])
-
-    now = datetime.now()
+        return
+    
+    # Get the most recent AP and RSSI from the records
+    most_recent = records[-1]
+    ap_id = most_recent["ap"] if most_recent["ap"] else "DefaultAP"
+    rssi = most_recent["rssi"] if most_recent["rssi"] is not None else -99
+    
     payload = {
         "device_id": device_id,
-        "duration_total": round(duration_total, 2),
-        "ap_switches": ap_switches,
-        "frag_count": 0,
-        "bytes_total": 0,
-        "rssi_mean": round(rssi_mean, 2),
-        "rssi_std": round(rssi_std, 2),
-        "invalid_rssi_count": invalid_rssi_count,
-        "login_hour": now.hour,
-        "weekday": now.weekday(),
-        "start_minute_of_day": now.hour * 60 + now.minute
+        "ap_id": ap_id,
+        "rssi": rssi
     }
+    
     return payload
 
 def send_to_supabase(payload):
@@ -112,11 +102,11 @@ def periodic_sender():
         with lock:
             if not packet_buffer:
                 continue
-            print(f"\n[AGGREGATE] Processing {len(packet_buffer)} devices...")
+            print(f"\n[SENDING] Processing {len(packet_buffer)} devices...")
             for device_id, recs in list(packet_buffer.items()):
-                features = summarize_session(device_id, recs)
-                if features:
-                    send_to_supabase(features)
+                payload = send_captures(device_id, recs)
+                if payload:
+                    send_to_supabase(payload)
             packet_buffer.clear()
 
 def start_capture():
@@ -136,9 +126,9 @@ def stop_capture():
         if packet_buffer:
             print(f"[STOP] Sending final {len(packet_buffer)} devices...")
             for device_id, recs in list(packet_buffer.items()):
-                features = summarize_session(device_id, recs)
-                if features:
-                    send_to_supabase(features)
+                payload = send_captures(device_id, recs)
+                if payload:
+                    send_to_supabase(payload)
             packet_buffer.clear()
     print("[CAPTURE] Stopped WiFi capture")
 
