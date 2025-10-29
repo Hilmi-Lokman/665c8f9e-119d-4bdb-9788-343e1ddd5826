@@ -23,7 +23,8 @@ serve(async (req) => {
       .from('attendance_records')
       .select(`
         *,
-        schedules:schedule_id (
+        schedules (
+          id,
           subject_name,
           class_code,
           location
@@ -54,7 +55,7 @@ serve(async (req) => {
       // Get class name from schedule if available, otherwise fall back to device class_name
       const className = record.schedules?.subject_name || record.class_name || 'General';
       
-      console.log(`[Report] ID=${record.id}: class=${className}, schedule=${record.schedules?.subject_name}, device_class=${record.class_name}`);
+      console.log(`[Report] ID=${record.id}: class=${className}, schedule_id=${record.schedule_id}, schedule_name=${record.schedules?.subject_name}, device_class=${record.class_name}`);
       
       return {
         id: record.id,
