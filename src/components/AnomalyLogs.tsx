@@ -111,15 +111,45 @@ const AnomalyLogs = () => {
     };
   }, []);
 
-  const handleStatusChange = (id: string, newStatus: AnomalyLog['status']) => {
-    setAnomalyLogs(prev => prev.map(log => 
-      log.id === id ? { ...log, status: newStatus } : log
-    ));
-    
-    toast({
-      title: "Status Updated",
-      description: `Anomaly has been marked as ${newStatus.replace('_', ' ')}.`,
-    });
+  const handleStatusChange = async (id: string, newStatus: AnomalyLog['status']) => {
+    try {
+      // Update the database
+      const updates: Record<string, any> = {};
+      
+      if (newStatus === 'false_positive') {
+        // Mark as not an anomaly
+        updates.anomaly_flag = false;
+        updates.status = 'present';
+      } else if (newStatus === 'confirmed') {
+        // Keep anomaly flag but mark as flagged
+        updates.anomaly_flag = true;
+        updates.status = 'flagged';
+      }
+      
+      const { error } = await supabase
+        .from('attendance_records')
+        .update(updates)
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setAnomalyLogs(prev => prev.map(log => 
+        log.id === id ? { ...log, status: newStatus } : log
+      ));
+      
+      toast({
+        title: "Status Updated",
+        description: `Anomaly has been marked as ${newStatus.replace('_', ' ')} and attendance record updated.`,
+      });
+    } catch (error) {
+      console.error('Error updating anomaly status:', error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update anomaly status. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadge = (status: AnomalyLog['status']) => {

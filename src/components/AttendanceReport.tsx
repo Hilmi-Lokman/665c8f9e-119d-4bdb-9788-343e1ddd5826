@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AttendanceRecord {
   id: string;
@@ -94,7 +95,21 @@ const AttendanceReport = () => {
         setIsLoading(false);
       }
     };
+    
     loadData();
+
+    // Set up real-time subscription for attendance record updates
+    const channel = supabase
+      .channel('attendance-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
+        console.log('[AttendanceReport] Real-time update detected, reloading data...');
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [toast]);
 
   // Dummy attendance data as fallback
