@@ -182,21 +182,31 @@ export function DeviceRegistration() {
   const handleAutoRegister = async () => {
     setAutoRegistering(true);
     try {
+      console.log('[DeviceRegistration] Starting auto-registration...');
       const { data, error } = await supabase.functions.invoke('auto-register-devices');
 
-      if (error) throw error;
+      if (error) {
+        console.error('[DeviceRegistration] Edge function error:', error);
+        throw error;
+      }
+
+      console.log('[DeviceRegistration] Auto-registration response:', data);
 
       toast({
         title: 'Success',
         description: data.message || 'Devices registered successfully',
       });
 
-      fetchData();
+      // Wait a bit for database to propagate changes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Refresh data
+      await fetchData();
     } catch (error) {
       console.error('Error auto-registering devices:', error);
       toast({
         title: 'Error',
-        description: 'Failed to auto-register devices',
+        description: 'Failed to auto-register devices. Check console for details.',
         variant: 'destructive',
       });
     } finally {
