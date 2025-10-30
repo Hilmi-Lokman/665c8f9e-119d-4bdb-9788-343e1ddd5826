@@ -76,8 +76,14 @@ export function DeviceRegistration() {
 
       if (attendanceError) throw attendanceError;
 
-      // Count occurrences of each device across all attendance (normalize to avoid casing/whitespace mismatches)
-      const normalize = (id: string) => id?.trim().toLowerCase();
+      // Count occurrences of each device across all attendance (normalize to canonical MAC format)
+      const normalize = (id: string) => {
+        if (!id) return '';
+        // Remove all non-hex characters, lowercase, and format as xx:xx:xx:xx:xx:xx
+        const cleaned = id.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+        if (cleaned.length < 12) return cleaned;
+        return cleaned.match(/.{1,2}/g)?.join(':') || cleaned;
+      };
       const deviceCounts = new Map<string, number>();
       attendanceDevices?.forEach((record) => {
         const raw = record.device_id as string;
