@@ -23,6 +23,7 @@ SEND_INTERVAL = 30           # seconds per send (same as window)
 lock = threading.Lock()
 packet_buffer = {}  # device_id -> list of packets (RSSI, AP, timestamp)
 capture_active = False
+network_error_logged = False  # Track if we've already logged network errors
 
 def parse_rssi(pkt):
     try:
@@ -142,7 +143,7 @@ def cancel_capture():
 
 def check_capture_control():
     """Poll database for capture control signal from React app"""
-    global capture_active
+    global capture_active, network_error_logged
     try:
         headers = {
             'Content-Type': 'application/json',
@@ -157,6 +158,11 @@ def check_capture_control():
             timeout=5
         )
         
+        # Reset error flag on successful connection
+        if network_error_logged:
+            print("[CONTROL] ✓ Network connection restored")
+            network_error_logged = False
+        
         if response.status_code == 200:
             data = response.json()
             if data and len(data) > 0:
@@ -170,8 +176,14 @@ def check_capture_control():
                     print("[CONTROL] React app requested STOP")
                     stop_capture()
                     
+    except requests.exceptions.RequestException as e:
+        # Only log network errors once to avoid console spam
+        if not network_error_logged:
+            print(f"[CONTROL] ⚠ Network unavailable - waiting for connection...")
+            print(f"[CONTROL] (Check VM network settings if this persists)")
+            network_error_logged = True
     except Exception as e:
-        print(f"[CONTROL ERROR] {e}")
+        print(f"[CONTROL ERROR] Unexpected error: {e}")
 
 def control_monitor():
     """Monitor database every 5 seconds for control signals"""
