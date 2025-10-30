@@ -69,25 +69,31 @@ export function DeviceRegistration() {
       if (regError) throw regError;
       setRegisteredDevices(registered || []);
 
-      // Fetch unregistered devices from attendance_records
-      // Check for NULL, 'N/A', or 'Unknown' values
-      const { data: unregistered, error: unregError } = await supabase
+      // Fetch all device_ids seen in attendance (we'll compute unregistered by diffing against registered list)
+      const { data: attendanceDevices, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('device_id')
-        .or('matric_number.is.null,matric_number.eq.N/A,student_name.eq.Unknown');
+        .select('device_id');
 
-      if (unregError) throw unregError;
+      if (attendanceError) throw attendanceError;
 
-      // Count occurrences of each unregistered device
+      // Count occurrences of each device across all attendance (normalize to avoid casing/whitespace mismatches)
+      const normalize = (id: string) => id?.trim().toLowerCase();
       const deviceCounts = new Map<string, number>();
-      unregistered?.forEach((record) => {
-        const count = deviceCounts.get(record.device_id) || 0;
-        deviceCounts.set(record.device_id, count + 1);
+      attendanceDevices?.forEach((record) => {
+        const raw = record.device_id as string;
+        const id = normalize(raw);
+        if (!id) return;
+        const count = deviceCounts.get(id) || 0;
+        deviceCounts.set(id, count + 1);
       });
 
+      // Any device_id present in attendance but missing from registered_devices is considered unregistered
+      const registeredSet = new Set((registered || []).map((r) => normalize(r.device_id)));
       const unregList = Array.from(deviceCounts.entries())
-        .map(([device_id, count]) => ({ device_id, count }))
-        .filter(d => !registered?.some(r => r.device_id === d.device_id));
+        .filter(([device_id]) => !registeredSet.has(device_id))
+        .map(([device_id, count]) => ({ device_id, count }));
+
+      console.info('[DeviceRegistration] Registered:', (registered || []).length, 'Attendance unique:', deviceCounts.size, 'Unregistered computed:', unregList.length);
 
       setUnregisteredDevices(unregList);
     } catch (error) {
