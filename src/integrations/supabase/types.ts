@@ -321,7 +321,12 @@ export type Database = {
           updated_at: string
         }[]
       }
-      set_capture_control: { Args: { start_capture: boolean }; Returns: Json }
+      set_capture_control:
+        | { Args: { start_capture: boolean }; Returns: Json }
+        | {
+            Args: { session_id?: string; start_capture: boolean }
+            Returns: Json
+          }
     }
     Enums: {
       app_role: "admin" | "lecturer"

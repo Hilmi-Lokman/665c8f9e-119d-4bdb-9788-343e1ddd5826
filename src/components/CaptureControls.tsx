@@ -161,18 +161,8 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
 
       setCurrentSessionId(sessionData.id);
 
-      // Update capture_control with the active session
-      const { error: controlError } = await supabase
-        .from('capture_control')
-        .update({ 
-          should_capture: true,
-          active_session_id: sessionData.id
-        })
-        .eq('id', 1);
-
-      if (controlError) throw controlError;
-
-      const response = await apiService.startCapture();
+      // Start capture with session_id (this will update capture_control via RPC)
+      const response = await apiService.startCapture(sessionData.id);
       
       if (response.status === 'success') {
         setCaptureState('running');
@@ -207,6 +197,9 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
 
   const handleStop = async () => {
     try {
+      // Stop capture first (this will clear active_session_id via RPC)
+      const response = await apiService.stopCapture();
+      
       // Close the class session
       if (currentSessionId) {
         await supabase
@@ -217,17 +210,6 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
           })
           .eq('id', currentSessionId);
       }
-
-      // Update capture control
-      await supabase
-        .from('capture_control')
-        .update({ 
-          should_capture: false,
-          active_session_id: null
-        })
-        .eq('id', 1);
-
-      const response = await apiService.stopCapture();
       
       if (response.status === 'success') {
         setCaptureState('stopped');

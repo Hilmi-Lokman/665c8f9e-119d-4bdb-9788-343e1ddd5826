@@ -121,7 +121,7 @@ class ApiService {
   }
 
   // Start WiFi capture (signals Kali script via database)
-  async startCapture(): Promise<CaptureResponse> {
+  async startCapture(sessionId?: string): Promise<CaptureResponse> {
     const response = await fetch(`https://zecylmrmutyhibqwnjps.supabase.co/rest/v1/rpc/set_capture_control`, {
       method: 'POST',
       headers: {
@@ -129,7 +129,10 @@ class ApiService {
         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA',
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA'}`
       },
-      body: JSON.stringify({ start_capture: true })
+      body: JSON.stringify({ 
+        start_capture: true,
+        session_id: sessionId 
+      })
     });
     
     if (!response.ok) {
