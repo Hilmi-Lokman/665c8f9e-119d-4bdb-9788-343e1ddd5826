@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Play, Square, StopCircle, Clock, Wifi, WifiOff, Activity, Settings, Bell, BellOff, Zap, CheckCircle } from "lucide-react";
+import { Play, Square, StopCircle, Clock, Wifi, WifiOff, Activity, Settings, Bell, BellOff, Zap, CheckCircle, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CaptureControlsProps {
   onCaptureStateChange?: (state: 'running' | 'stopped' | 'cancelled') => void;
@@ -29,8 +30,30 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
   const [captureMode, setCaptureMode] = useState<'standard' | 'high-precision' | 'power-save'>('standard');
   const [autoStop, setAutoStop] = useState<number>(0); // 0 = disabled, minutes
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<string>("");
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
   const { toast } = useToast();
+
+  // Fetch schedules from Supabase
+  useEffect(() => {
+    const fetchSchedules = async () => {
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('is_active', true)
+        .order('subject_name');
+      
+      if (error) {
+        console.error('Failed to fetch schedules:', error);
+      } else {
+        setSchedules(data || []);
+      }
+    };
+    
+    fetchSchedules();
+  }, []);
 
   // Check backend connection on mount
   useEffect(() => {
@@ -106,7 +129,49 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
   }, [captureState, elapsedTime]);
 
   const handleStart = async () => {
+    if (!selectedScheduleId) {
+      toast({
+        title: "No class selected",
+        description: "Please select a class before starting the session",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      // Get selected schedule details
+      const schedule = schedules.find(s => s.id === selectedScheduleId);
+      if (!schedule) {
+        throw new Error('Selected schedule not found');
+      }
+
+      // Create a new class session
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('class_sessions')
+        .insert({
+          schedule_id: schedule.id,
+          class_code: schedule.class_code,
+          subject_name: schedule.subject_name,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (sessionError) throw sessionError;
+
+      setCurrentSessionId(sessionData.id);
+
+      // Update capture_control with the active session
+      const { error: controlError } = await supabase
+        .from('capture_control')
+        .update({ 
+          should_capture: true,
+          active_session_id: sessionData.id
+        })
+        .eq('id', 1);
+
+      if (controlError) throw controlError;
+
       const response = await apiService.startCapture();
       
       if (response.status === 'success') {
@@ -124,8 +189,8 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
         onCaptureStateChange?.('running');
         
         toast({
-          title: "Capture session started",
-          description: response.message || `Using ${captureMode} mode${autoStop ? ` for ${autoStop} minutes` : ''}`,
+          title: "Class session started",
+          description: `${schedule.subject_name} (${schedule.class_code})`,
         });
       } else {
         throw new Error(response.message || 'Failed to start capture');
@@ -133,8 +198,8 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
     } catch (error) {
       setIsConnected(false);
       toast({
-        title: "Failed to start capture",
-        description: error instanceof Error ? error.message : 'Unable to connect to backend',
+        title: "Failed to start session",
+        description: error instanceof Error ? error.message : 'Unable to start class session',
         variant: "destructive",
       });
     }
@@ -142,23 +207,44 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
 
   const handleStop = async () => {
     try {
+      // Close the class session
+      if (currentSessionId) {
+        await supabase
+          .from('class_sessions')
+          .update({ 
+            end_time: new Date().toISOString(),
+            is_active: false
+          })
+          .eq('id', currentSessionId);
+      }
+
+      // Update capture control
+      await supabase
+        .from('capture_control')
+        .update({ 
+          should_capture: false,
+          active_session_id: null
+        })
+        .eq('id', 1);
+
       const response = await apiService.stopCapture();
       
       if (response.status === 'success') {
         setCaptureState('stopped');
         onCaptureStateChange?.('stopped');
+        setCurrentSessionId(null);
         
         toast({
-          title: "Capture session stopped",
-          description: response.message || `Collected ${captureStats.packetsCollected} packets in ${formatTime(elapsedTime)}`,
+          title: "Class session stopped",
+          description: response.message || `Session completed in ${formatTime(elapsedTime)}`,
         });
       } else {
         throw new Error(response.message || 'Failed to stop capture');
       }
     } catch (error) {
       toast({
-        title: "Failed to stop capture",
-        description: error instanceof Error ? error.message : 'Unable to connect to backend',
+        title: "Failed to stop session",
+        description: error instanceof Error ? error.message : 'Unable to stop class session',
         variant: "destructive",
       });
     }
@@ -294,7 +380,26 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
         </div>
 
         {/* Capture Settings */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Select Class
+            </label>
+            <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={captureState === 'running'}>
+              <SelectTrigger className="focus-university">
+                <SelectValue placeholder="Choose a class..." />
+              </SelectTrigger>
+              <SelectContent>
+                {schedules.map((schedule) => (
+                  <SelectItem key={schedule.id} value={schedule.id}>
+                    {schedule.subject_name} ({schedule.class_code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Capture Mode</label>
             <Select value={captureMode} onValueChange={(value: any) => setCaptureMode(value)} disabled={captureState === 'running'}>

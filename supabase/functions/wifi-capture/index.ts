@@ -191,28 +191,36 @@ serve(async (req) => {
     if (action === 'process' && req.method === 'POST') {
       console.log('[process] Aggregating and processing captures...');
 
-      // Get current time info for schedule detection
-      const now = new Date();
-      const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
-      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+      // Get the active session from capture_control
+      const { data: controlData, error: controlError } = await supabaseClient
+        .from('capture_control')
+        .select('active_session_id')
+        .eq('id', 1)
+        .single();
 
-      console.log(`[process] Current day: ${dayOfWeek}, time: ${currentTime}`);
-
-      // Fetch active schedule for current time
-      const { data: activeSchedules, error: schedError } = await supabaseClient
-        .from('schedules')
-        .select('*')
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_active', true)
-        .lte('time_start', currentTime)
-        .gte('time_end', currentTime);
-
-      if (schedError) {
-        console.error('[process] Error fetching schedules:', schedError);
+      if (controlError) {
+        console.error('[process] Error fetching capture control:', controlError);
       }
 
-      const activeSchedule = activeSchedules && activeSchedules.length > 0 ? activeSchedules[0] : null;
-      console.log('[process] Active schedule:', activeSchedule ? `${activeSchedule.subject_name} (${activeSchedule.duration_minutes} min)` : 'None');
+      const activeSessionId = controlData?.active_session_id;
+      console.log('[process] Active session ID:', activeSessionId || 'None');
+
+      // Fetch session details if available
+      let sessionSchedule = null;
+      if (activeSessionId) {
+        const { data: sessionData, error: sessionError } = await supabaseClient
+          .from('class_sessions')
+          .select('*, schedules(*)')
+          .eq('id', activeSessionId)
+          .single();
+
+        if (sessionError) {
+          console.error('[process] Error fetching session:', sessionError);
+        } else {
+          sessionSchedule = sessionData;
+          console.log('[process] Session:', sessionData.subject_name, `(${sessionData.class_code})`);
+        }
+      }
 
       // Fetch all periodic captures
       const { data: captures, error: fetchError } = await supabaseClient
@@ -316,26 +324,29 @@ serve(async (req) => {
         // Determine if absent based on schedule
         let isAbsent = false;
         let status = record.anomaly_flag ? 'flagged' : 'present';
+        let requiredMinutes = null;
         
-        if (activeSchedule) {
-          const requiredMinutes = activeSchedule.duration_minutes;
-          // Mark as absent if attendance time is less than class duration
-          if (attendanceDurationMinutes < requiredMinutes) {
-            isAbsent = true;
-            status = 'absent';
-            console.log(`[process] Device ${record.device_id}: marked ABSENT (${attendanceDurationMinutes}/${requiredMinutes} min)`);
-          } else {
-            console.log(`[process] Device ${record.device_id}: marked PRESENT (${attendanceDurationMinutes}/${requiredMinutes} min)`);
+        if (sessionSchedule) {
+          requiredMinutes = sessionSchedule.schedules?.duration_minutes || sessionSchedule.duration_minutes;
+          if (requiredMinutes) {
+            // Mark as absent if attendance time is less than class duration
+            if (attendanceDurationMinutes < requiredMinutes) {
+              isAbsent = true;
+              status = 'absent';
+              console.log(`[process] Device ${record.device_id}: marked ABSENT (${attendanceDurationMinutes}/${requiredMinutes} min)`);
+            } else {
+              console.log(`[process] Device ${record.device_id}: marked PRESENT (${attendanceDurationMinutes}/${requiredMinutes} min)`);
+            }
           }
         }
         
         // Lookup registered device information
         const registeredDevice = deviceLookup.get(record.device_id);
         
-        // Use schedule's subject name if available, otherwise use device's class_name
-        const className = activeSchedule?.subject_name || registeredDevice?.class_name || null;
+        // Use session's subject name if available, otherwise use device's class_name
+        const className = sessionSchedule?.subject_name || registeredDevice?.class_name || null;
         
-        console.log(`[process] Device ${record.device_id}: anomaly=${record.anomaly_flag}, score=${record.anomaly_score}, status=${status}, class=${className}`);
+        console.log(`[process] Device ${record.device_id}: anomaly=${record.anomaly_flag}, score=${record.anomaly_score}, status=${status}, class=${className}, session=${activeSessionId}`);
         
         return {
           device_id: record.device_id,
@@ -352,7 +363,8 @@ serve(async (req) => {
           student_name: registeredDevice?.student_name || null,
           matric_number: registeredDevice?.matric_number || null,
           class_name: className,
-          schedule_id: activeSchedule?.id || null,
+          schedule_id: sessionSchedule?.schedule_id || null,
+          session_id: activeSessionId,
           attendance_duration_minutes: attendanceDurationMinutes,
           is_absent: isAbsent,
         };

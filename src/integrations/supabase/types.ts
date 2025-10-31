@@ -33,6 +33,7 @@ export type Database = {
           rssi_std: number | null
           schedule_id: string | null
           session_duration: string | null
+          session_id: string | null
           status: string | null
           student_name: string | null
           updated_at: string
@@ -55,6 +56,7 @@ export type Database = {
           rssi_std?: number | null
           schedule_id?: string | null
           session_duration?: string | null
+          session_id?: string | null
           status?: string | null
           student_name?: string | null
           updated_at?: string
@@ -77,6 +79,7 @@ export type Database = {
           rssi_std?: number | null
           schedule_id?: string | null
           session_duration?: string | null
+          session_id?: string | null
           status?: string | null
           student_name?: string | null
           updated_at?: string
@@ -89,25 +92,87 @@ export type Database = {
             referencedRelation: "schedules"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attendance_records_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "class_sessions"
+            referencedColumns: ["id"]
+          },
         ]
       }
       capture_control: {
         Row: {
+          active_session_id: string | null
           id: number
           should_capture: boolean
           updated_at: string | null
         }
         Insert: {
+          active_session_id?: string | null
           id?: number
           should_capture?: boolean
           updated_at?: string | null
         }
         Update: {
+          active_session_id?: string | null
           id?: number
           should_capture?: boolean
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "capture_control_active_session_id_fkey"
+            columns: ["active_session_id"]
+            isOneToOne: false
+            referencedRelation: "class_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_sessions: {
+        Row: {
+          class_code: string
+          created_at: string
+          end_time: string | null
+          id: string
+          is_active: boolean
+          schedule_id: string | null
+          start_time: string
+          subject_name: string
+          updated_at: string
+        }
+        Insert: {
+          class_code: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          is_active?: boolean
+          schedule_id?: string | null
+          start_time?: string
+          subject_name: string
+          updated_at?: string
+        }
+        Update: {
+          class_code?: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          is_active?: boolean
+          schedule_id?: string | null
+          start_time?: string
+          subject_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_sessions_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       periodic_captures: {
         Row: {

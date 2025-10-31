@@ -48,7 +48,27 @@ const AttendanceReport = () => {
   const [searchId, setSearchId] = useState("");
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [selectedSession, setSelectedSession] = useState("");
   const { toast } = useToast();
+
+  // Fetch class sessions
+  useEffect(() => {
+    const fetchSessions = async () => {
+      const { data, error } = await supabase
+        .from('class_sessions')
+        .select('*')
+        .order('start_time', { ascending: false });
+      
+      if (error) {
+        console.error('Failed to fetch sessions:', error);
+      } else {
+        setSessions(data || []);
+      }
+    };
+    
+    fetchSessions();
+  }, []);
 
   // Load attendance data from backend
   useEffect(() => {
@@ -211,6 +231,7 @@ const AttendanceReport = () => {
   const filteredRecords = attendanceRecords.filter(record => {
     if (selectedClass && selectedClass !== "all" && record.className !== selectedClass) return false;
     if (searchId && !record.matricNo.toLowerCase().includes(searchId.toLowerCase())) return false;
+    // Add session filter if needed (would need to add session_id to AttendanceRecord interface)
     return true;
   });
 
@@ -238,7 +259,24 @@ const AttendanceReport = () => {
           <CardDescription>Customize your attendance report view</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Class Session</label>
+              <Select value={selectedSession} onValueChange={setSelectedSession}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All sessions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sessions</SelectItem>
+                  {sessions.map((session) => (
+                    <SelectItem key={session.id} value={session.id}>
+                      {session.subject_name} - {new Date(session.start_time).toLocaleDateString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Class</label>
               <Select value={selectedClass} onValueChange={setSelectedClass}>
