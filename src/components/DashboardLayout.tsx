@@ -9,7 +9,6 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 
 interface DashboardLayoutProps {
   children: ReactNode;
-  isSidebarCollapsed: boolean;
   currentView: string;
   viewTitle: string;
   profile: any;
@@ -26,7 +25,6 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({
   children,
-  isSidebarCollapsed,
   currentView,
   viewTitle,
   profile,
@@ -41,11 +39,8 @@ export const DashboardLayout = ({
   onViewChange,
 }: DashboardLayoutProps) => {
   return (
-    <div className={cn(
-      "flex-1 transition-all duration-300",
-      isSidebarCollapsed ? "ml-20" : "ml-64"
-    )}>
-      {/* Skip to main content link - for keyboard navigation */}
+    <div className="w-full">
+      {/* Skip to main content link */}
       <a 
         href="#main-content" 
         className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg"
@@ -54,8 +49,8 @@ export const DashboardLayout = ({
       </a>
       
       {/* Header */}
-      <header className="glass-effect border-b border-border/50 shadow-header sticky top-0 z-10" role="banner">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+      <header className="glass-effect border-b border-border/50 shadow-header" role="banner">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           {/* Breadcrumb */}
           <Breadcrumb className="mb-4 animate-fade-in" aria-label="Page breadcrumb navigation">
             <BreadcrumbList>
@@ -119,12 +114,11 @@ export const DashboardLayout = ({
                 variant="outline" 
                 size="sm" 
                 onClick={onSignOut}
-                className="button-bounce hover-glow focus-university font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="button-bounce hover-glow focus-university font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hidden lg:flex"
                 aria-label="Sign out of your account"
               >
                 <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
-                <span className="hidden sm:inline">Sign Out</span>
-                <span className="sr-only sm:hidden">Sign out</span>
+                <span>Sign Out</span>
               </Button>
             </div>
           </div>
@@ -134,7 +128,7 @@ export const DashboardLayout = ({
       {/* Main Content */}
       <main 
         id="main-content" 
-        className="animated-bg min-h-[calc(100vh-8rem)]"
+        className="animated-bg min-h-[calc(100vh-12rem)]"
         role="main"
         aria-label="Dashboard main content"
         tabIndex={-1}

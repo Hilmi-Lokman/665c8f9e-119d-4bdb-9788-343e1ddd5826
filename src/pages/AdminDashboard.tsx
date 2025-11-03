@@ -38,7 +38,6 @@ const AdminDashboard = () => {
   const [currentView, setCurrentView] = useState("dashboard");
   const [sessionActive, setSessionActive] = useState(false);
   const [selectedAnomaly, setSelectedAnomaly] = useState(null);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isAnomalyModalOpen, setIsAnomalyModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isDrilldownOpen, setIsDrilldownOpen] = useState(false);
@@ -468,18 +467,16 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navigation 
         role={profile?.role || "admin"} 
         currentView={currentView} 
         onViewChange={handleViewChange}
         anomalyCount={anomalies.filter(a => a.status === 'pending').length}
         onLogout={handleSignOut}
-        onCollapseChange={setIsSidebarCollapsed}
       />
       
       <DashboardLayout
-        isSidebarCollapsed={isSidebarCollapsed}
         currentView={currentView}
         viewTitle={getViewTitle()}
         profile={profile}
