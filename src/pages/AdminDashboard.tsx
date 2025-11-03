@@ -226,23 +226,23 @@ const AdminDashboard = () => {
       <div className="space-y-6 lg:space-y-8 animate-fade-in">
         <DashboardStats isLive={sessionActive} />
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-          <div className="space-y-6">
+        <CaptureControls onCaptureStateChange={(state) => setSessionActive(state === 'running')} />
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="lg:col-span-1">
             <RecentActivity />
           </div>
-          <div className="space-y-6">
-            <CaptureControls onCaptureStateChange={(state) => setSessionActive(state === 'running')} />
+          <div className="lg:col-span-2">
+            <RealtimeAttendanceTable 
+              isLive={sessionActive}
+              onAnomalyClick={(record) => {
+                setSelectedRecord(record);
+                setIsDrilldownOpen(true);
+              }}
+              onExport={() => handleViewChange("export")}
+            />
           </div>
         </div>
-        
-        <RealtimeAttendanceTable 
-          isLive={sessionActive}
-          onAnomalyClick={(record) => {
-            setSelectedRecord(record);
-            setIsDrilldownOpen(true);
-          }}
-          onExport={() => handleViewChange("export")}
-        />
       </div>
     );
   };
