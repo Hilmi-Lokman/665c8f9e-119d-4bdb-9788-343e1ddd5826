@@ -474,6 +474,14 @@ const AdminDashboard = () => {
         onViewChange={handleViewChange}
         anomalyCount={anomalies.filter(a => a.status === 'pending').length}
         onLogout={handleSignOut}
+        profile={profile}
+        sessionActive={sessionActive}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
+        onClearNotification={clearNotification}
+        onClearAll={clearAll}
       />
       
       <DashboardLayout
