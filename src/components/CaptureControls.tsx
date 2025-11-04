@@ -198,7 +198,7 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
   const handleStop = async () => {
     try {
       // Stop capture first (this will clear active_session_id via RPC)
-      const response = await apiService.stopCapture();
+      const response = await apiService.stopCapture(currentSessionId);
       
       // Close the class session
       if (currentSessionId) {
@@ -234,7 +234,7 @@ const CaptureControls = ({ onCaptureStateChange }: CaptureControlsProps) => {
 
   const handleCancel = async () => {
     try {
-      const response = await apiService.cancelProcess();
+      const response = await apiService.cancelProcess(currentSessionId);
       
       if (response.status === 'success') {
         setCaptureState('cancelled');

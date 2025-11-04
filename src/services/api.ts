@@ -143,7 +143,7 @@ class ApiService {
   }
 
   // Stop WiFi capture (signals Kali script via database)
-  async stopCapture(): Promise<CaptureResponse> {
+  async stopCapture(sessionId?: string | null): Promise<CaptureResponse> {
     const response = await fetch(`https://zecylmrmutyhibqwnjps.supabase.co/rest/v1/rpc/set_capture_control`, {
       method: 'POST',
       headers: {
@@ -151,7 +151,7 @@ class ApiService {
         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA',
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA'}`
       },
-      body: JSON.stringify({ start_capture: false })
+      body: JSON.stringify({ start_capture: false, session_id: sessionId ?? null })
     });
     
     if (!response.ok) {
@@ -162,16 +162,16 @@ class ApiService {
   }
 
   // Cancel capture and clear temp data
-  async cancelProcess(): Promise<CaptureResponse> {
-    // Stop capture first
+  async cancelProcess(sessionId?: string | null): Promise<CaptureResponse> {
+    // Stop capture first (ensure we call the 2-arg function overload)
     await fetch(`https://zecylmrmutyhibqwnjps.supabase.co/rest/v1/rpc/set_capture_control`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA'}`
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9zZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY3lsbXJtdXR5aGlicXduanBzIiwicm9zZSI6ImFub24iLCJpYXQiOjE3NTc2NjMyMTYsImV4cCI6MjA3MzIzOTIxNn0.62a7kDjaHl7Pc8hxHZSGkqDDtAH0VCj-VCUz8Y94LTA'}`
       },
-      body: JSON.stringify({ start_capture: false })
+      body: JSON.stringify({ start_capture: false, session_id: sessionId ?? null })
     });
     
     // Clear periodic_captures table - skip for now (types not ready)
