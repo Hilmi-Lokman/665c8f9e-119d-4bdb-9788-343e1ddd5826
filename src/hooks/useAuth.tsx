@@ -66,10 +66,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      // Skip profile fetch for now - types not ready
-      setLoading(false);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) throw error;
+      setProfile(data);
     } catch (error) {
       console.error('Error fetching profile:', error);
+    } finally {
       setLoading(false);
     }
   };
