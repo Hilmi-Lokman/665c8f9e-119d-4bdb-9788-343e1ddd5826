@@ -1,6 +1,6 @@
 // Core type definitions for the application
 
-export type AttendanceStatus = 'present' | 'absent' | 'flagged';
+export type AttendanceStatus = 'present' | 'suspicious' | 'flagged';
 export type AnomalyStatus = 'pending' | 'reviewed' | 'flagged';
 export type AnomalyType = 'erratic_ap_switching' | 'proxy_attempt' | 'unusual_duration' | 'short_session' | 'spoofing';
 export type CaptureState = 'idle' | 'running' | 'paused' | 'stopped';

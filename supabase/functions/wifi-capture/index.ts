@@ -332,8 +332,9 @@ serve(async (req) => {
             // Mark as absent if attendance time is less than class duration
             if (attendanceDurationMinutes < requiredMinutes) {
               isAbsent = true;
-              status = 'absent';
-              console.log(`[process] Device ${record.device_id}: marked ABSENT (${attendanceDurationMinutes}/${requiredMinutes} min)`);
+              // Use 'suspicious' status for short duration (constraint allows: present, flagged, suspicious)
+              status = record.anomaly_flag ? 'flagged' : 'suspicious';
+              console.log(`[process] Device ${record.device_id}: marked ABSENT (${attendanceDurationMinutes}/${requiredMinutes} min) - status: ${status}`);
             } else {
               console.log(`[process] Device ${record.device_id}: marked PRESENT (${attendanceDurationMinutes}/${requiredMinutes} min)`);
             }
