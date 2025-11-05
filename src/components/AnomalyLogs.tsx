@@ -17,7 +17,8 @@ import {
   Activity,
   Clock,
   TrendingUp,
-  Download
+  Download,
+  Trash2
 } from "lucide-react";
 
 interface AnomalyLog {
@@ -170,6 +171,54 @@ const AnomalyLogs = () => {
       toast({
         title: "Update Failed",
         description: "Failed to update anomaly status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      setAnomalyLogs(prev => prev.filter(log => log.id !== recordId));
+      toast({
+        title: "Record deleted",
+        description: "Anomaly record has been deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete anomaly record",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .in('status', ['suspicious', 'flagged']);
+
+      if (error) throw error;
+
+      setAnomalyLogs([]);
+      toast({
+        title: "All anomalies deleted",
+        description: "All anomaly records have been deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting all records:', error);
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete all anomaly records",
         variant: "destructive",
       });
     }
@@ -335,13 +384,26 @@ const AnomalyLogs = () => {
       {/* Anomaly Logs Table */}
       <Card className="dashboard-card">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Activity className="h-5 w-5 text-primary" />
-            <span>Anomaly Detection Logs</span>
-          </CardTitle>
-          <CardDescription>
-            {filteredLogs.length} anomalies found
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <Activity className="h-5 w-5 text-primary" />
+                <span>Anomaly Detection Logs</span>
+              </CardTitle>
+              <CardDescription>
+                {filteredLogs.length} anomalies found
+              </CardDescription>
+            </div>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={handleDeleteAll}
+              disabled={filteredLogs.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete All
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -479,6 +541,14 @@ const AnomalyLogs = () => {
                           </Button>
                         </>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handleDeleteRecord(log.id)}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>

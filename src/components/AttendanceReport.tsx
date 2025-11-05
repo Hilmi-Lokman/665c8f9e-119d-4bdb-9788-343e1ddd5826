@@ -14,7 +14,8 @@ import {
   Users,
   CheckCircle2,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
 import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -192,6 +193,54 @@ const AttendanceReport = () => {
       description: "Preparing attendance report for download",
     });
     // Export logic can be added here
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      setAttendanceRecords(prev => prev.filter(r => r.id !== recordId));
+      toast({
+        title: "Record deleted",
+        description: "Attendance record has been deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete attendance record",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (error) throw error;
+
+      setAttendanceRecords([]);
+      toast({
+        title: "All records deleted",
+        description: "All attendance records have been deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting all records:', error);
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete all attendance records",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadge = (status: AttendanceRecord['status']) => {
@@ -394,13 +443,26 @@ const AttendanceReport = () => {
       {/* Attendance Table */}
       <Card className="dashboard-card">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <span>Attendance Records</span>
-          </CardTitle>
-          <CardDescription>
-            {filteredRecords.length} records found
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <span>Attendance Records</span>
+              </CardTitle>
+              <CardDescription>
+                {filteredRecords.length} records found
+              </CardDescription>
+            </div>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={handleDeleteAll}
+              disabled={filteredRecords.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete All
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -413,6 +475,7 @@ const AttendanceReport = () => {
                 <TableHead>Time Out</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -442,6 +505,15 @@ const AttendanceReport = () => {
                       {getStatusIcon(record.status)}
                       {getStatusBadge(record.status)}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteRecord(record.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               )))}
