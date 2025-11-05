@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { AnomalyRecord } from '@/types';
+import { AnomalyRecord, AnomalyType } from '@/types';
 import { useNotifications } from '@/hooks/useNotifications';
+import { supabase } from '@/integrations/supabase/client';
 
 interface UseAnomalyDetectionOptions {
   threshold?: number;
@@ -29,26 +30,55 @@ export const useAnomalyDetection = (
       setIsLoading(true);
       setError(null);
       
-      // TODO: Replace with actual API call
-      // const response = await supabase.from('anomalies').select('*').gte('anomalyScore', threshold);
-      
-      const mockAnomalies: AnomalyRecord[] = [
-        {
-          id: "1",
-          hashedMac: "1a2b3c4d5e6f098765432",
-          anomalyType: "erratic_ap_switching",
-          anomalyScore: 0.87,
-          timestamp: new Date().toISOString(),
-          status: "pending",
-          autoDetected: true
+      // Fetch attendance records where status is not 'present'
+      const { data: records, error: fetchError } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .neq('status', 'present')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      // Transform attendance records to AnomalyRecord format
+      const transformedAnomalies: AnomalyRecord[] = (records || []).map(record => {
+        const score = record.anomaly_score || 0;
+        
+        // Determine anomaly type based on record data
+        let anomalyType: AnomalyType = 'unusual_duration';
+        if (record.ap_switches > 5) {
+          anomalyType = 'erratic_ap_switching';
+        } else if (record.duration_seconds < 300) {
+          anomalyType = 'short_session';
+        } else if (record.duration_seconds > 14400) {
+          anomalyType = 'unusual_duration';
         }
-      ];
+
+        // Map status to AnomalyStatus
+        const status = record.status === 'flagged' ? 'flagged' : 'pending';
+
+        return {
+          id: record.id,
+          hashedMac: record.device_id,
+          anomalyType,
+          anomalyScore: score,
+          timestamp: record.created_at,
+          status,
+          autoDetected: true,
+          details: {
+            duration: `${Math.floor(record.duration_seconds / 60)} minutes`,
+            apSwitches: record.ap_switches,
+            avgRssi: record.avg_rssi,
+            matricNumber: record.matric_number,
+            studentName: record.student_name,
+          }
+        };
+      });
       
-      setAnomalies(mockAnomalies);
+      setAnomalies(transformedAnomalies);
       
       // Smart notifications for new anomalies
-      if (autoNotify && mockAnomalies.some(a => a.status === 'pending')) {
-        const pendingAnomalies = mockAnomalies.filter(a => a.status === 'pending');
+      if (autoNotify && transformedAnomalies.some(a => a.status === 'pending')) {
+        const pendingAnomalies = transformedAnomalies.filter(a => a.status === 'pending');
         
         // Notify individually for critical anomalies
         const criticalAnomalies = pendingAnomalies.filter(a => a.anomalyScore >= 0.85);
@@ -80,14 +110,26 @@ export const useAnomalyDetection = (
 
   const reviewAnomaly = useCallback(async (id: string, action: 'normal' | 'confirmed') => {
     try {
-      // TODO: Replace with actual API call
-      // await supabase.from('anomalies').update({ status: action === 'confirmed' ? 'flagged' : 'reviewed' }).eq('id', id);
+      // Update attendance record status
+      const updates = {
+        status: action === 'confirmed' ? 'flagged' : 'present',
+        anomaly_flag: action === 'confirmed',
+      };
+
+      const { error: updateError } = await supabase
+        .from('attendance_records')
+        .update(updates)
+        .eq('id', id);
+
+      if (updateError) throw updateError;
       
+      // Update local state
       setAnomalies(prev => 
         prev.map(a => a.id === id ? { ...a, status: action === 'confirmed' ? 'flagged' : 'reviewed' } as AnomalyRecord : a)
       );
     } catch (err) {
       console.error('Failed to update anomaly status:', err);
+      throw err;
     }
   }, []);
 
