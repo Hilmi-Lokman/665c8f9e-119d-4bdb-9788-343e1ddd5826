@@ -30,11 +30,11 @@ export const useAnomalyDetection = (
       setIsLoading(true);
       setError(null);
       
-      // Fetch attendance records where status is not 'present'
+      // Fetch attendance records where status is 'suspicious' OR 'flagged'
       const { data: records, error: fetchError } = await supabase
         .from('attendance_records')
         .select('*')
-        .neq('status', 'present')
+        .in('status', ['suspicious', 'flagged'])
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -53,7 +53,7 @@ export const useAnomalyDetection = (
           anomalyType = 'unusual_duration';
         }
 
-        // Map status to AnomalyStatus
+        // Map status: 'suspicious' -> 'pending', 'flagged' -> 'flagged'
         const status = record.status === 'flagged' ? 'flagged' : 'pending';
 
         return {
@@ -75,38 +75,12 @@ export const useAnomalyDetection = (
       });
       
       setAnomalies(transformedAnomalies);
-      
-      // Smart notifications for new anomalies
-      if (autoNotify && transformedAnomalies.some(a => a.status === 'pending')) {
-        const pendingAnomalies = transformedAnomalies.filter(a => a.status === 'pending');
-        
-        // Notify individually for critical anomalies
-        const criticalAnomalies = pendingAnomalies.filter(a => a.anomalyScore >= 0.85);
-        criticalAnomalies.forEach(anomaly => {
-          notifyAnomaly(
-            anomaly.anomalyType,
-            anomaly.anomalyScore,
-            anomaly.hashedMac,
-            anomaly.details
-          );
-        });
-        
-        // Batch notification for non-critical
-        const nonCritical = pendingAnomalies.filter(a => a.anomalyScore < 0.85);
-        if (nonCritical.length > 0) {
-          notifyBatch(
-            nonCritical.length,
-            'anomaly',
-            `${nonCritical.length} new anomaly(ies) detected requiring review`
-          );
-        }
-      }
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch anomalies'));
     } finally {
       setIsLoading(false);
     }
-  }, [threshold, autoNotify, notifyAnomaly, notifyBatch]);
+  }, [threshold]);
 
   const reviewAnomaly = useCallback(async (id: string, action: 'normal' | 'confirmed') => {
     try {
@@ -135,6 +109,26 @@ export const useAnomalyDetection = (
 
   useEffect(() => {
     fetchAnomalies();
+
+    // Set up real-time subscription for updates
+    const channel = supabase
+      .channel('anomaly-records-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance_records'
+        },
+        () => {
+          fetchAnomalies();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchAnomalies]);
 
   return {

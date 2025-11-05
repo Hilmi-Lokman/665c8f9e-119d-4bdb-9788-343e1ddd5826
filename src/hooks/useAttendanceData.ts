@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AttendanceRecord } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 interface UseAttendanceDataOptions {
   autoRefresh?: boolean;
@@ -31,9 +32,14 @@ export const useAttendanceData = (
       
       // Transform to AttendanceRecord format
       const transformedData: AttendanceRecord[] = records.map(record => {
-        // Map status to valid AttendanceStatus type
-        const status: 'present' | 'absent' | 'flagged' = 
-          (record.status === 'flagged' || record.anomalyFlag) ? 'flagged' : 'present';
+        // Map status directly from database
+        let status: 'present' | 'suspicious' | 'flagged' = 'present';
+        
+        if (record.status === 'flagged') {
+          status = 'flagged';
+        } else if (record.status === 'suspicious') {
+          status = 'suspicious';
+        }
         
         return {
           id: record.id,
@@ -57,6 +63,26 @@ export const useAttendanceData = (
 
   useEffect(() => {
     fetchData();
+
+    // Set up real-time subscription to sync updates from anomaly page
+    const channel = supabase
+      .channel('attendance-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'attendance_records'
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchData]);
 
   useEffect(() => {

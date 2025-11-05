@@ -47,10 +47,11 @@ const AnomalyLogs = () => {
   useEffect(() => {
     const fetchAnomalies = async () => {
       try {
+        // Fetch records where status is 'suspicious' OR 'flagged'
         const { data: records, error } = await supabase
           .from('attendance_records')
           .select('*')
-          .eq('anomaly_flag', true)
+          .in('status', ['suspicious', 'flagged'])
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -68,6 +69,14 @@ const AnomalyLogs = () => {
           else if (record.duration_seconds < 300) anomalyType = 'Short Session';
           else if (record.duration_seconds > 14400) anomalyType = 'Unusual Session Duration';
 
+          // Map database status to display status
+          let displayStatus: 'pending' | 'reviewed' | 'false_positive' | 'confirmed';
+          if (record.status === 'flagged') {
+            displayStatus = 'confirmed';
+          } else {
+            displayStatus = 'pending';
+          }
+
           return {
             id: record.id,
             studentId: record.matric_number || 'Unknown',
@@ -75,7 +84,7 @@ const AnomalyLogs = () => {
             timestamp: new Date(record.created_at).toLocaleString(),
             anomalyScore: score,
             anomalyType,
-            status: 'pending',
+            status: displayStatus,
             description: `Anomaly score: ${(score * 100).toFixed(0)}% | AP switches: ${record.ap_switches} | Duration: ${Math.floor(record.duration_seconds / 60)}min`,
             riskLevel,
             details: {
@@ -100,10 +109,18 @@ const AnomalyLogs = () => {
 
     // Set up real-time subscription
     const channel = supabase
-      .channel('anomaly-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
-        fetchAnomalies();
-      })
+      .channel('anomaly-logs-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance_records'
+        },
+        () => {
+          fetchAnomalies();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -113,17 +130,17 @@ const AnomalyLogs = () => {
 
   const handleStatusChange = async (id: string, newStatus: AnomalyLog['status']) => {
     try {
-      // Update the database
-      const updates: Record<string, any> = {};
+      // Update the attendance record status
+      let updates: Record<string, any> = {};
       
       if (newStatus === 'false_positive') {
-        // Mark as not an anomaly
-        updates.anomaly_flag = false;
+        // Mark as Normal -> status = 'present'
         updates.status = 'present';
+        updates.anomaly_flag = false;
       } else if (newStatus === 'confirmed') {
-        // Keep anomaly flag but mark as flagged
-        updates.anomaly_flag = true;
+        // Confirm Threat -> status = 'flagged'
         updates.status = 'flagged';
+        updates.anomaly_flag = true;
       }
       
       const { error } = await supabase
@@ -133,14 +150,20 @@ const AnomalyLogs = () => {
       
       if (error) throw error;
       
-      // Update local state
-      setAnomalyLogs(prev => prev.map(log => 
-        log.id === id ? { ...log, status: newStatus } : log
-      ));
+      // Remove from local state since it's no longer in anomaly view
+      if (newStatus === 'false_positive') {
+        setAnomalyLogs(prev => prev.filter(log => log.id !== id));
+      } else {
+        setAnomalyLogs(prev => prev.map(log => 
+          log.id === id ? { ...log, status: newStatus } : log
+        ));
+      }
       
       toast({
         title: "Status Updated",
-        description: `Anomaly has been marked as ${newStatus.replace('_', ' ')} and attendance record updated.`,
+        description: newStatus === 'false_positive' 
+          ? "Marked as normal and moved to attendance records"
+          : "Confirmed as threat and flagged in attendance records",
       });
     } catch (error) {
       console.error('Error updating anomaly status:', error);
