@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import DashboardStats from "@/components/DashboardStats";
-import RecentActivity from "@/components/RecentActivity";
 import AttendanceReport from "@/components/AttendanceReport";
 import ScheduleManagement from "@/components/ScheduleManagement";
 import AnomalyLogs from "@/components/AnomalyLogs";
@@ -9,10 +8,10 @@ import SettingsPage from "@/components/SettingsPage";
 import AttendanceTable from "@/components/AttendanceTable";
 import AnomalyModal from "@/components/AnomalyModal";
 import CaptureControls from "@/components/CaptureControls";
-import RealtimeAttendanceTable from "@/components/RealtimeAttendanceTable";
 import AnomalyDrilldownModal from "@/components/AnomalyDrilldownModal";
 import ExportManager from "@/components/ExportManager";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { DashboardMonitor } from "@/components/DashboardMonitor";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonCard, SkeletonTable, SkeletonChart } from "@/components/ui/skeleton-loader";
 import { Button } from "@/components/ui/button";
@@ -228,21 +227,14 @@ const AdminDashboard = () => {
         
         <CaptureControls onCaptureStateChange={(state) => setSessionActive(state === 'running')} />
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          <div className="lg:col-span-1">
-            <RecentActivity />
-          </div>
-          <div className="lg:col-span-2">
-            <RealtimeAttendanceTable 
-              isLive={sessionActive}
-              onAnomalyClick={(record) => {
-                setSelectedRecord(record);
-                setIsDrilldownOpen(true);
-              }}
-              onExport={() => handleViewChange("export")}
-            />
-          </div>
-        </div>
+        <DashboardMonitor 
+          isLive={sessionActive}
+          onAnomalyClick={(record) => {
+            setSelectedRecord(record);
+            setIsDrilldownOpen(true);
+          }}
+          onExport={() => handleViewChange("export")}
+        />
       </div>
     );
   };
