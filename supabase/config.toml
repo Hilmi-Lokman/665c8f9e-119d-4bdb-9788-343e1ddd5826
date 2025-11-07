@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.auto-register-devices]
 verify_jwt = false
+
+[functions.analyze-anomaly]
+verify_jwt = false

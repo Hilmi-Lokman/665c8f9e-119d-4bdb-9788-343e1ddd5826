@@ -35,7 +35,17 @@ interface AnomalyLog {
     duration: string;
     apSwitches: number;
     suspiciousPatterns: string[];
+    deviceId: string;
+    avgRssi: number;
+    durationSeconds: number;
+    matricNumber?: string;
+    studentName?: string;
   };
+}
+
+interface AIAnalysis {
+  description: string;
+  patterns: string[];
 }
 
 const AnomalyLogs = () => {
@@ -44,6 +54,8 @@ const AnomalyLogs = () => {
   const [selectedRisk, setSelectedRisk] = useState("");
   const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyLog | null>(null);
   const [anomalyLogs, setAnomalyLogs] = useState<AnomalyLog[]>([]);
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
 
   useEffect(() => {
     const fetchAnomalies = async () => {
@@ -95,7 +107,12 @@ const AnomalyLogs = () => {
                 score > 0.7 ? 'High anomaly score detected' : 'Moderate anomaly score',
                 record.ap_switches > 5 ? `Excessive AP switching (${record.ap_switches} times)` : 'Normal AP usage',
                 record.avg_rssi < -80 ? 'Weak signal strength' : 'Normal signal strength'
-              ]
+              ],
+              deviceId: record.device_id,
+              avgRssi: record.avg_rssi,
+              durationSeconds: record.duration_seconds,
+              matricNumber: record.matric_number,
+              studentName: record.student_name
             }
           };
         });
@@ -256,6 +273,50 @@ const AnomalyLogs = () => {
 
   const formatAnomalyScore = (score: number) => {
     return (score * 100).toFixed(1) + '%';
+  };
+
+  const fetchAIAnalysis = async (log: AnomalyLog) => {
+    if (!log.details) return;
+    
+    setIsLoadingAnalysis(true);
+    setAiAnalysis(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-anomaly', {
+        body: {
+          anomalyScore: log.anomalyScore,
+          apSwitches: log.details.apSwitches,
+          avgRssi: log.details.avgRssi,
+          durationSeconds: log.details.durationSeconds,
+          deviceId: log.details.deviceId,
+          matricNumber: log.details.matricNumber,
+          studentName: log.details.studentName
+        }
+      });
+
+      if (error) throw error;
+      
+      setAiAnalysis(data as AIAnalysis);
+    } catch (error) {
+      console.error('Error fetching AI analysis:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Could not generate AI analysis. Showing basic patterns.",
+        variant: "destructive"
+      });
+      // Fallback to existing patterns
+      setAiAnalysis({
+        description: log.description,
+        patterns: log.details?.suspiciousPatterns || []
+      });
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  };
+
+  const handleViewAnomaly = (log: AnomalyLog) => {
+    setSelectedAnomaly(log);
+    fetchAIAnalysis(log);
   };
 
   const filteredLogs = anomalyLogs.filter(log => {
@@ -446,7 +507,7 @@ const AnomalyLogs = () => {
                             variant="outline" 
                             size="sm" 
                             className="h-8 w-8 p-0"
-                            onClick={() => setSelectedAnomaly(log)}
+                            onClick={() => handleViewAnomaly(log)}
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
@@ -481,20 +542,36 @@ const AnomalyLogs = () => {
                               
                               <div>
                                 <label className="text-sm font-medium">Description</label>
-                                <p className="text-sm text-muted-foreground">{selectedAnomaly.description}</p>
+                                {isLoadingAnalysis ? (
+                                  <div className="flex items-center space-x-2 text-sm text-muted-foreground mt-1">
+                                    <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                                    <span>Analyzing with AI...</span>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">
+                                    {aiAnalysis?.description || selectedAnomaly.description}
+                                  </p>
+                                )}
                               </div>
                               
                               {selectedAnomaly.details && (
                                 <div>
                                   <label className="text-sm font-medium">Suspicious Patterns</label>
-                                  <ul className="text-sm text-muted-foreground mt-1 space-y-1">
-                                    {selectedAnomaly.details.suspiciousPatterns.map((pattern, index) => (
-                                      <li key={index} className="flex items-start space-x-2">
-                                        <span className="text-destructive">•</span>
-                                        <span>{pattern}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
+                                  {isLoadingAnalysis ? (
+                                    <div className="flex items-center space-x-2 text-sm text-muted-foreground mt-1">
+                                      <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                                      <span>Identifying patterns...</span>
+                                    </div>
+                                  ) : (
+                                    <ul className="text-sm text-muted-foreground mt-1 space-y-1">
+                                      {(aiAnalysis?.patterns || selectedAnomaly.details.suspiciousPatterns).map((pattern, index) => (
+                                        <li key={index} className="flex items-start space-x-2">
+                                          <span className="text-destructive">•</span>
+                                          <span>{pattern}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
                                 </div>
                               )}
                               
