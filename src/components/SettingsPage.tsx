@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   User,
   Shield,
@@ -18,7 +19,11 @@ import {
   Save,
   Key,
   Mail,
-  Phone
+  Phone,
+  Upload,
+  Brain,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 
 const SettingsPage = () => {
@@ -26,12 +31,13 @@ const SettingsPage = () => {
   
   // Profile Settings State
   const [profileData, setProfileData] = useState({
-    fullName: "Dr. Ahmad Rahman",
-    email: "admin@university.edu.my",
-    phone: "+60123456789",
+    fullName: "",
+    email: "",
+    phone: "",
     department: "Computer Science",
     role: "admin"
   });
+  const [newPassword, setNewPassword] = useState("");
 
   // Security Settings State
   const [securitySettings, setSecuritySettings] = useState({
@@ -51,12 +57,80 @@ const SettingsPage = () => {
     backupFrequency: "daily"
   });
 
-  const handleProfileUpdate = () => {
-    // API call would go here
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been successfully updated.",
-    });
+  // AI Model Upload State
+  const [modelFile, setModelFile] = useState<File | null>(null);
+  const [scalerFile, setScalerFile] = useState<File | null>(null);
+  const [modelVersion, setModelVersion] = useState("");
+  const [modelNotes, setModelNotes] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [currentModel, setCurrentModel] = useState<any>(null);
+
+  const fetchProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (profile) {
+        setProfileData({
+          fullName: profile.full_name || "",
+          email: profile.email,
+          phone: "",
+          department: "Computer Science",
+          role: profile.role
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+    fetchCurrentModel();
+  }, []);
+
+  const handleProfileUpdate = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: profileData.fullName,
+        })
+        .eq('user_id', user.id);
+
+      if (profileError) throw profileError;
+
+      if (newPassword) {
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: newPassword
+        });
+        if (passwordError) throw passwordError;
+        setNewPassword("");
+      }
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile information has been successfully updated.",
+      });
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSecurityUpdate = () => {
@@ -73,6 +147,100 @@ const SettingsPage = () => {
       title: "System Settings Updated", 
       description: "System configuration has been successfully updated.",
     });
+  };
+
+  const fetchCurrentModel = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('ai_model_config')
+        .select('*')
+        .eq('is_active', true)
+        .order('uploaded_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      setCurrentModel(data);
+    } catch (error) {
+      console.error('Error fetching current model:', error);
+    }
+  };
+
+
+  const handleModelUpload = async () => {
+    if (!modelFile || !scalerFile) {
+      toast({
+        title: "Missing Files",
+        description: "Please select both model and scaler files.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const timestamp = new Date().getTime();
+      const modelPath = `models/${timestamp}_${modelFile.name}`;
+      const scalerPath = `scalers/${timestamp}_${scalerFile.name}`;
+
+      // Upload model file
+      const { error: modelUploadError } = await supabase.storage
+        .from('ai-models')
+        .upload(modelPath, modelFile);
+      
+      if (modelUploadError) throw modelUploadError;
+
+      // Upload scaler file
+      const { error: scalerUploadError } = await supabase.storage
+        .from('ai-models')
+        .upload(scalerPath, scalerFile);
+      
+      if (scalerUploadError) throw scalerUploadError;
+
+      // Deactivate previous models
+      await supabase
+        .from('ai_model_config')
+        .update({ is_active: false })
+        .eq('is_active', true);
+
+      // Insert new model config
+      const { error: configError } = await supabase
+        .from('ai_model_config')
+        .insert({
+          model_file_path: modelPath,
+          scaler_file_path: scalerPath,
+          uploaded_by: user.id,
+          version: modelVersion || `v${timestamp}`,
+          notes: modelNotes,
+          is_active: true
+        });
+
+      if (configError) throw configError;
+
+      toast({
+        title: "Model Updated Successfully",
+        description: "Your AI model and scaler have been uploaded and activated.",
+      });
+
+      // Reset form
+      setModelFile(null);
+      setScalerFile(null);
+      setModelVersion("");
+      setModelNotes("");
+      fetchCurrentModel();
+    } catch (error: any) {
+      console.error('Error uploading model:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload model files.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -160,6 +328,8 @@ const SettingsPage = () => {
                   id="newPassword"
                   type="password"
                   placeholder="Enter new password (leave blank to keep current)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                 />
               </div>
               
@@ -271,6 +441,117 @@ const SettingsPage = () => {
 
         {/* System Configuration */}
         <div className="space-y-6">
+          <Card className="dashboard-card">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <span>AI Model Management</span>
+              </CardTitle>
+              <CardDescription>
+                Upload and manage anomaly detection models
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {currentModel && (
+                <div className="p-3 bg-muted/50 rounded-lg border border-border/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Current Model</span>
+                    <Badge variant="outline" className="bg-primary/10 text-primary">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Active
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p><strong>Version:</strong> {currentModel.version}</p>
+                    <p><strong>Uploaded:</strong> {new Date(currentModel.uploaded_at).toLocaleDateString()}</p>
+                    {currentModel.notes && <p><strong>Notes:</strong> {currentModel.notes}</p>}
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="modelVersion">Model Version (Optional)</Label>
+                <Input
+                  id="modelVersion"
+                  placeholder="e.g., v2.0 or 2024-01-15"
+                  value={modelVersion}
+                  onChange={(e) => setModelVersion(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="modelFile">Upload ONNX Model File</Label>
+                <Input
+                  id="modelFile"
+                  type="file"
+                  accept=".onnx"
+                  onChange={(e) => setModelFile(e.target.files?.[0] || null)}
+                />
+                {modelFile && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-primary" />
+                    {modelFile.name}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="scalerFile">Upload Scaler PKL File</Label>
+                <Input
+                  id="scalerFile"
+                  type="file"
+                  accept=".pkl"
+                  onChange={(e) => setScalerFile(e.target.files?.[0] || null)}
+                />
+                {scalerFile && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-primary" />
+                    {scalerFile.name}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="modelNotes">Notes (Optional)</Label>
+                <Input
+                  id="modelNotes"
+                  placeholder="e.g., Improved accuracy on edge cases"
+                  value={modelNotes}
+                  onChange={(e) => setModelNotes(e.target.value)}
+                />
+              </div>
+
+              <Button 
+                onClick={handleModelUpload} 
+                disabled={isUploading || !modelFile || !scalerFile}
+                className="w-full flex items-center justify-center space-x-2"
+              >
+                {isUploading ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    <span>Upload & Activate Model</span>
+                  </>
+                )}
+              </Button>
+
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                  <p className="text-xs text-yellow-600">
+                    Note: After uploading, you'll need to restart your Python anomaly service and update the file paths to use the new model.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="dashboard-card">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">

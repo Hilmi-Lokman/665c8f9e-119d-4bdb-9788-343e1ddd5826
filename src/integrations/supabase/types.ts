@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_model_config: {
+        Row: {
+          id: string
+          is_active: boolean | null
+          model_file_path: string
+          notes: string | null
+          scaler_file_path: string
+          uploaded_at: string | null
+          uploaded_by: string | null
+          version: string | null
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean | null
+          model_file_path: string
+          notes?: string | null
+          scaler_file_path: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+          version?: string | null
+        }
+        Update: {
+          id?: string
+          is_active?: boolean | null
+          model_file_path?: string
+          notes?: string | null
+          scaler_file_path?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+          version?: string | null
+        }
+        Relationships: []
+      }
       attendance_records: {
         Row: {
           anomaly_flag: boolean

@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.analyze-anomaly]
 verify_jwt = false
+
+[functions.get-active-model]
+verify_jwt = false
