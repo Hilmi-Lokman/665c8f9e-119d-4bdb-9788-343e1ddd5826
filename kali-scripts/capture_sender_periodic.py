@@ -26,13 +26,39 @@ capture_active = False
 network_error_logged = False  # Track if we've already logged network errors
 
 def parse_rssi(pkt):
+    """Parse RSSI from packet - try multiple methods"""
     try:
+        # Method 1: RadioTap dBm_AntSignal (most common)
         if pkt.haslayer(RadioTap):
-            r = getattr(pkt.getlayer(RadioTap), "dBm_AntSignal", None)
-            if r is not None:
-                return int(r)
-    except Exception:
-        pass
+            radiotap = pkt.getlayer(RadioTap)
+            
+            # Try dBm_AntSignal attribute
+            rssi = getattr(radiotap, "dBm_AntSignal", None)
+            if rssi is not None:
+                return int(rssi)
+            
+            # Try alternative: Antenna signal attribute
+            rssi = getattr(radiotap, "Antenna_signal", None)
+            if rssi is not None:
+                return int(rssi)
+                
+            # Debug: Print available attributes once
+            if not hasattr(parse_rssi, '_debug_printed'):
+                print(f"[DEBUG] RadioTap attributes: {dir(radiotap)}")
+                print(f"[DEBUG] RadioTap layer: {radiotap.show(dump=True)}")
+                parse_rssi._debug_printed = True
+        else:
+            # Debug: Print packet structure once
+            if not hasattr(parse_rssi, '_no_radiotap_printed'):
+                print(f"[DEBUG] No RadioTap layer! Packet layers: {pkt.layers()}")
+                print(f"[DEBUG] Packet summary: {pkt.summary()}")
+                parse_rssi._no_radiotap_printed = True
+                
+    except Exception as e:
+        if not hasattr(parse_rssi, '_error_printed'):
+            print(f"[DEBUG] RSSI parse error: {e}")
+            parse_rssi._error_printed = True
+    
     return None
 
 def handler(pkt):
