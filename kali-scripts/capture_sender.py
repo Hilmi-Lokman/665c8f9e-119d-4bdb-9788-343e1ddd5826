@@ -34,31 +34,54 @@ capture_active = False
 network_error_logged = False
 
 def parse_rssi(pkt):
-    """Parse RSSI from packet - try multiple methods"""
+    """Parse RSSI from packet - try multiple methods with fallbacks"""
     try:
-        # Method 1: RadioTap dBm_AntSignal (most common)
         if pkt.haslayer(RadioTap):
             radiotap = pkt.getlayer(RadioTap)
             
-            # Try dBm_AntSignal attribute
+            # Method 1: Try dBm_AntSignal (most common)
             rssi = getattr(radiotap, "dBm_AntSignal", None)
             if rssi is not None:
                 return int(rssi)
             
-            # Try alternative: Antenna signal attribute
+            # Method 2: Try lowercase variant
+            rssi = getattr(radiotap, "dbm_antsignal", None)
+            if rssi is not None:
+                return int(rssi)
+            
+            # Method 3: Try Antenna_signal attribute
             rssi = getattr(radiotap, "Antenna_signal", None)
             if rssi is not None:
                 return int(rssi)
+            
+            # Method 4: Try parsing notdecoded field (last byte often contains RSSI)
+            if hasattr(radiotap, "notdecoded") and radiotap.notdecoded:
+                try:
+                    # Last byte of notdecoded sometimes contains RSSI
+                    rssi_byte = radiotap.notdecoded[-1]
+                    if isinstance(rssi_byte, int):
+                        # Convert unsigned byte to signed dBm (-128 to 0)
+                        rssi_value = rssi_byte if rssi_byte < 128 else rssi_byte - 256
+                        if -100 <= rssi_value <= 0:  # Sanity check for valid RSSI range
+                            if not hasattr(parse_rssi, '_notdecoded_success'):
+                                print(f"[INFO] Using fallback RSSI from RadioTap.notdecoded")
+                                parse_rssi._notdecoded_success = True
+                            return rssi_value
+                except Exception:
+                    pass
                 
             # Debug: Print available attributes once
             if not hasattr(parse_rssi, '_debug_printed'):
-                print(f"[DEBUG] RadioTap attributes: {dir(radiotap)}")
-                print(f"[DEBUG] RadioTap layer: {radiotap.show(dump=True)}")
+                print(f"\n[DEBUG] RadioTap attributes: {[a for a in dir(radiotap) if not a.startswith('_')]}")
+                print(f"[DEBUG] RadioTap.present: {getattr(radiotap, 'present', 'N/A')}")
+                print(f"[DEBUG] RadioTap.notdecoded length: {len(radiotap.notdecoded) if hasattr(radiotap, 'notdecoded') else 'N/A'}")
+                if hasattr(radiotap, 'notdecoded') and radiotap.notdecoded:
+                    print(f"[DEBUG] RadioTap.notdecoded bytes: {[hex(b) for b in radiotap.notdecoded[:10]]}")
                 parse_rssi._debug_printed = True
         else:
             # Debug: Print packet structure once
             if not hasattr(parse_rssi, '_no_radiotap_printed'):
-                print(f"[DEBUG] No RadioTap layer! Packet layers: {pkt.layers()}")
+                print(f"\n[DEBUG] No RadioTap layer! Packet layers: {pkt.layers()}")
                 print(f"[DEBUG] Packet summary: {pkt.summary()}")
                 parse_rssi._no_radiotap_printed = True
                 
